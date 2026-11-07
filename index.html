@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POC 1: In-place navigation (the "100-tab" problem)</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif;background:#1b1d21;color:#e8e8e8}
+.bar{background:#161616;border-bottom:1px solid #333;padding:10px 16px;display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;position:sticky;top:0;z-index:999}
+.bar h1{font-size:15px;margin:0;font-weight:600}.bar h1 small{display:block;font-weight:400;color:#9aa;font-size:12px}
+.seg{display:flex;border:1px solid #444;border-radius:6px;overflow:hidden}.seg button{background:none;border:0;color:#bbb;padding:6px 12px;cursor:pointer;font:inherit}.seg button.on{background:#0f766e;color:#fff}
+.cnt{padding:4px 12px;border-radius:20px;background:#24a148;color:#fff;font-weight:600;transition:.2s}.cnt.warn{background:#f1c21b;color:#000}.cnt.bad{background:#da1e28}
+.bar label{display:flex;gap:6px;align-items:center;color:#ccc;cursor:pointer}.bar .btn{background:#262626;border:1px solid #555;color:#eee;border-radius:6px;padding:6px 12px;cursor:pointer;font:inherit}.bar .btn:hover{background:#393939}
+.sp{flex:1}
+#desk{margin:16px;padding-bottom:70px}
+.win{max-width:1100px;margin:0 auto;border-radius:8px;overflow:hidden;background:#fff;color:#1f2937;box-shadow:0 8px 30px #0008;border:1px solid #444}
+.tb{height:36px;background:#2b2d31;color:#ddd;display:flex;align-items:flex-end;gap:12px;padding:0 12px;font-size:12px}
+.dots{display:flex;gap:6px;align-self:center}.dots i{width:10px;height:10px;border-radius:50%;background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+.tabs{flex:1;display:flex;gap:2px;overflow:hidden;height:30px}
+.tab{flex:1 1 0;min-width:22px;max-width:190px;display:flex;align-items:center;gap:6px;padding:0 8px;overflow:hidden;white-space:nowrap;background:#3a3d43;border-radius:6px 6px 0 0;cursor:pointer;color:#bbb}
+.tab span{overflow:hidden;text-overflow:ellipsis}.tab.on{background:#fff;color:#1f2937}
+.fav{flex:none;width:12px;height:12px;border-radius:3px;background:#0f766e}
+.nav{height:38px;background:#f3f4f6;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;gap:10px;padding:0 12px}
+.bk{border:1px solid #d1d5db;background:#fff;border-radius:6px;width:30px;height:26px;cursor:pointer;font:inherit}.bk:disabled{opacity:.35;cursor:not-allowed}
+.url{flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:5px;padding:3px 10px;color:#4b5563;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app{display:grid;grid-template-columns:170px 1fr;min-height:470px;position:relative;overflow:hidden}
+aside{background:#0f172a;color:#cbd5e1;padding:14px 10px}aside b{display:block;color:#fff;margin:0 8px 14px;font-size:15px}
+aside a{display:block;padding:8px 10px;border-radius:6px;cursor:pointer}aside a:hover{background:#1e293b}aside a.on{background:#0f766e;color:#fff}
+.main{padding:18px 22px;animation:in .2s ease-out}@keyframes in{from{opacity:0;transform:translateY(4px)}}
+.crumbs{font-size:12px;color:#6b7280;margin-bottom:4px}.crumbs a{color:#0f766e;cursor:pointer}.crumbs a:hover{text-decoration:underline}
+h2{margin:0 0 14px;font-size:20px}h3{margin:20px 0 8px;font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:#6b7280;font-weight:600;padding:6px 8px;border-bottom:1px solid #e5e7eb}
+td{padding:9px 8px;border-bottom:1px solid #f0f1f3}tr[data-go]{cursor:pointer}tr[data-go]:hover td{background:#f0fdfa}
+.bd{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;background:#e5e7eb}.bd.ok{background:#d1fae5;color:#065f46}.bd.hold{background:#fee2e2;color:#991b1b}
+.card{border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;background:#fafafa}.row{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center}.row small{display:block;color:#6b7280;font-size:11px}
+.btn2{border:1px solid #d1d5db;background:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font:inherit;color:#1f2937}.btn2:hover{background:#f3f4f6}.btn2.pri{background:#0f766e;border-color:#0f766e;color:#fff}
+.warnb{background:#fef3c7;border:1px solid #f59e0b;color:#78350f;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
+.hint{color:#6b7280;font-size:12px;margin-top:12px}.card label{display:block;margin:0 0 12px}.card input[type=number]{margin-left:8px;width:80px;padding:4px 6px}
+.drawer{position:absolute;top:0;right:0;bottom:0;width:340px;background:#fff;border-left:1px solid #e5e7eb;box-shadow:-8px 0 24px #0002;padding:16px 18px;animation:sl .22s ease-out;z-index:5}
+@keyframes sl{from{transform:translateX(30px);opacity:0}}.drawer .x{float:right}
+.doc{border:1px solid #e5e7eb;border-radius:6px;padding:14px;background:#fff;font-size:13px}.doc h4{margin:0 0 8px;font-size:15px}.doc p{margin:4px 0}
+.note{position:fixed;right:16px;bottom:16px;max-width:380px;background:#262626;border:1px solid #f1c21b;border-radius:8px;padding:10px 14px;font-size:12px;display:none;z-index:1000}
+#info{display:none;margin:16px auto;padding:16px 20px;background:#262626;border-radius:8px;font-size:13px;max-width:1100px}#info.on{display:block}#info h2{margin:0 0 8px;font-size:14px;color:#e8e8e8}#info li{margin:5px 0}
+.pill{font-size:11px;padding:1px 6px;border-radius:10px;background:#393939;color:#9ef}
+</style></head><body>
+<div class="bar">
+ <h1>POC 1: In-place navigation<small>Drill into a customer, an order, an invoice. Compare a new tab per click with updating the current tab.</small></h1>
+ <div class="seg"><button id="mT">Today: new tab per click</button><button id="mP" class="on">Proposed: in place</button></div>
+ <span class="cnt" id="cnt">1 tab</span>
+ <button class="btn" id="tri" style="display:none">Tab triage: close the others</button>
+ <label><input type="checkbox" id="uns"> Simulate unsaved work</label>
+ <button class="btn" id="rst">Reset</button><span class="sp"></span>
+ <button class="btn" id="inf">Design considerations</button>
+</div>
+<div id="info"><h2>Design considerations (Ledgerline is a fictional product; this concept is about the pattern, not a specific app)</h2><ul>
+<li><b>Context fragmentation.</b> A new tab per click removes the trail of breadcrumbs. In-place navigation keeps the user's place in the hierarchy visible (see the breadcrumbs in Proposed mode).</li>
+<li><b>State disconnects.</b> Each tab holds its own copy of the data. In Today mode, open the same customer in two tabs and toggle its status in one: the other goes stale. Avoiding that across tabs needs extra sync work (WebSockets, storage events).</li>
+<li><b>Execution friction.</b> Count the tabs after a short task, then use “Tab triage” to see the clean-up cost users pay at the end of the day.</li>
+<li><b>Browsers limit “replace and close”.</b> <code>window.close()</code> generally works only on windows opened by script, so closing the previous tab is unreliable. Single-window routing achieves the same outcome without it.</li>
+<li><b>Context kept in place.</b> The invoice opens in a slide-over drawer, so the order underneath stays visible and “back” is one click.</li>
+<li><b>Deep links.</b> The URL hash updates on every step, so Back, Refresh and bookmarks work. A real build would use real routes (for example React Router or Vue Router).</li>
+<li><b>Unsaved work.</b> In-place navigation can discard edits. Edit a Settings field, or tick “Simulate unsaved work”, then navigate in Proposed mode to see the guard. <span class="pill">design requirement</span></li>
+<li><b>Some new tabs are deliberate.</b> Exports, print views, external links and side-by-side comparison are better as an explicit “open in new tab” action. Scope this change to routine drill-down.</li>
+<li><b>Not measured.</b> Tab counts here are simulated. Memory use, load times and real-user effort are untested.</li></ul></div>
+<div id="desk"></div><div class="note" id="note"></div>
+<script>
+const $=id=>document.getElementById(id);
+const CUS={c101:["Maple Grove Co.","R. Okafor","Leeds"],c102:["Brightwell Logistics","M. Duarte","Rotterdam"],c103:["Kestrel Foods","A. Lindqvist","Gothenburg"],c104:["Lumen Studio","S. Park","Busan"]};
+const ORD={o2001:["c101","ORD-2001","Seasonal gift boxes x120",1840,"Shipped","2026-10-28"],o2002:["c101","ORD-2002","Ribbon and tissue refill",260,"Processing","2026-11-02"],o2003:["c102","ORD-2003","Pallet wrap x40",720,"Pending","2026-11-03"],o2004:["c103","ORD-2004","Cold-chain crates x15",1190,"Delivered","2026-10-19"],o2005:["c104","ORD-2005","Display stands x6",980,"Processing","2026-11-04"]};
+const initSt=()=>({c101:"Active",c102:"On hold",c103:"Active",c104:"Active"});
+const DB={st:initSt(),timeout:30,email:true};
+const money=n=>"$"+n.toLocaleString("en-US");
+let legacy=false,tabs=[],act=0,seq=0,pushed=0;
+const mkTab=(route,opened)=>({id:++seq,route,opened:!!opened,dirty:false,snap:{...DB.st}});
+const st=(t,id)=>legacy?t.snap[id]:DB.st[id];
+const badge=s=>`<span class="bd ${s=="Active"?"ok":s=="On hold"?"hold":""}">${s}</span>`;
+function valid(r){const p=r.split("/");if(r=="customers"||r=="orders"||r=="settings")return true;
+ if(p[0]=="customers"&&CUS[p[1]]){if(p.length==2)return true;
+  if(p[2]=="orders"&&ORD[p[3]]&&ORD[p[3]][0]==p[1])return p.length==4||(p.length==5&&p[4]=="invoice")}return false}
+function title(r){const p=r.split("/");if(p[0]=="settings")return"Settings";if(r=="customers")return"Customers";if(r=="orders")return"Orders";
+ if(p.length==2)return CUS[p[1]][0];const o=ORD[p[3]][1];return p.length==4?o:"Invoice "+o}
+function crumbs(r){const p=r.split("/"),a=[];
+ if(p[0]=="customers"){a.push(["Customers","customers"]);if(p[1]){a.push([CUS[p[1]][0],"customers/"+p[1]]);
+  if(p[3]){a.push([ORD[p[3]][1],p.slice(0,4).join("/")]);if(p[4])a.push(["Invoice",r])}}}
+ else a.push([title(r),r]);return a}
+function table(head,rows){return`<table><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr>`+rows.map(x=>`<tr data-go="${x[0]}">${x.slice(1).map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")+`</table>`}
+function orderRows(id){return Object.keys(ORD).filter(o=>ORD[o][0]==id).map(o=>[`customers/${id}/orders/${o}`,ORD[o][1],ORD[o][2],money(ORD[o][3]),ORD[o][4]])}
+function docHTML(o){const d=ORD[o];return`<div class="doc"><h4>Invoice INV-${d[1].slice(4)}</h4><p>Customer: ${CUS[d[0]][0]}</p><p>Order: ${d[1]} (${d[5]})</p><p>Item: ${d[2]}</p><p><b>Total: ${money(d[3])}</b></p></div>`}
+function body(t){const r=t.route,p=r.split("/");
+ if(r=="customers")return table(["Customer","Owner","City","Status"],Object.keys(CUS).map(id=>["customers/"+id,CUS[id][0],CUS[id][1],CUS[id][2],badge(st(t,id))]));
+ if(r=="orders")return table(["Order","Customer","Item","Status"],Object.keys(ORD).map(o=>{const d=ORD[o];return[`customers/${d[0]}/orders/${o}`,d[1],CUS[d[0]][0],d[2],d[4]]}));
+ if(r=="settings")return`<div class="card"><label>Session timeout (minutes)<input type="number" id="to" value="${DB.timeout}" data-dirty></label><label><input type="checkbox" id="em" data-dirty ${DB.email?"checked":""}> Email me a daily digest</label><button class="btn2 pri" data-act="save">Save</button></div><p class="hint">Edit a value, then click a sidebar item in Proposed mode to see the unsaved-changes guard.</p>`;
+ if(p.length==2){const id=p[1],c=CUS[id],stale=legacy&&t.snap[id]!=DB.st[id];
+  return(stale?`<div class="warnb">This tab is out of date: it shows “${t.snap[id]}” but the latest status is “${DB.st[id]}”. <button class="btn2" data-act="reload">Reload</button></div>`:"")+
+  `<div class="card"><div class="row"><div><small>Owner</small><b>${c[1]}</b></div><div><small>City</small><b>${c[2]}</b></div><div><small>Status</small>${badge(st(t,id))}</div><button class="btn2" data-act="toggle" data-id="${id}">Toggle status</button></div></div><h3>Orders</h3>`+table(["Order","Item","Total","Status"],orderRows(id))}
+ const o=p[3],d=ORD[o],inv=`customers/${p[1]}/orders/${o}/invoice`;
+ if(p.length==5&&legacy)return docHTML(o);
+ const card=`<div class="card"><div class="row"><div><small>Customer</small><a class="btn2" data-go="customers/${d[0]}" style="text-decoration:none">${CUS[d[0]][0]}</a></div><div><small>Item</small><b>${d[2]}</b></div><div><small>Total</small><b>${money(d[3])}</b></div><div><small>Status</small>${d[4]}</div><button class="btn2 pri" data-go="${inv}">View invoice</button></div></div>`;
+ return card+(p.length==5?`<div class="drawer"><button class="btn2 x" data-nav="${p.slice(0,4).join("/")}">Close</button><h3 style="margin-top:0">Invoice</h3>${docHTML(o)}</div>`:"")}
+function render(){const t=tabs[act],r=t.route,p=r.split("/");
+ const side=[["customers","Customers"],["orders","Orders"],["settings","Settings"]].map(x=>`<a data-nav="${x[0]}" class="${p[0]==x[0]?"on":""}">${x[1]}</a>`).join("");
+ const cr=legacy?"":`<nav class="crumbs">`+crumbs(r).map((c,i,a)=>i==a.length-1?`<span>${c[0]}</span>`:`<a data-nav="${c[1]}">${c[0]}</a>`).join(" › ")+`</nav>`;
+ $("desk").innerHTML=`<div class="win"><div class="tb"><span class="dots"><i></i><i></i><i></i></span><div class="tabs">`+
+  tabs.map((x,i)=>`<div class="tab${i==act?" on":""}" data-tab="${i}" title="${title(x.route)}"><i class="fav"></i><span>${title(x.route)}</span></div>`).join("")+
+  `</div></div><div class="nav"><button class="bk" data-act="back" title="${legacy?"A new tab starts with no history":"Back"}" ${legacy||pushed==0?"disabled":""}>←</button><span class="url">https://ledgerline.example.com/${r}</span></div>`+
+  `<div class="app"><aside><b>Ledgerline</b>${side}</aside><main class="main">${cr}<h2>${title(r)}</h2>${body(t)}</main></div></div>`;
+ const n=tabs.length;$("cnt").textContent=n+(n==1?" tab":" tabs");$("cnt").className="cnt"+(n>5?" bad":n>2?" warn":"");
+ $("tri").style.display=legacy&&n>1?"":"none"}
+function note(m){const n=$("note");n.textContent=m;n.style.display="block";clearTimeout(note.t);note.t=setTimeout(()=>n.style.display="none",6000)}
+function navigate(route){const t=tabs[act];if(route==t.route)return;
+ if(!legacy&&(t.dirty||$("uns").checked)&&!confirm("Unsaved changes on “"+title(t.route)+"” will be lost if you leave this page. Leave anyway?\n\n(This is the risk to design for: today a new tab protects unsaved work by accident.)"))return;
+ t.dirty=false;t.route=route;if(!legacy){location.hash="#/"+route;pushed++}render()}
+function openTab(route){tabs.push(mkTab(route,true));act=tabs.length-1;render()}
+$("desk").addEventListener("click",e=>{const el=e.target.closest("[data-go],[data-nav],[data-act],[data-tab]");if(!el)return;const t=tabs[act];
+ if(el.dataset.tab!==undefined){act=+el.dataset.tab;render();return}
+ if(el.dataset.go){legacy?openTab(el.dataset.go):navigate(el.dataset.go);return}
+ if(el.dataset.nav){navigate(el.dataset.nav);return}
+ const a=el.dataset.act;
+ if(a=="back"&&pushed>0){pushed--;history.back()}
+ if(a=="toggle"){const id=el.dataset.id;DB.st[id]=DB.st[id]=="Active"?"On hold":"Active";t.snap[id]=DB.st[id];render();if(legacy)note("Status changed. Any other tab showing this customer still holds the old value.")}
+ if(a=="reload"){t.snap={...DB.st};render()}
+ if(a=="save"){DB.timeout=+$("to").value;DB.email=$("em").checked;t.dirty=false;note("Settings saved.")}});
+$("desk").addEventListener("input",e=>{if(e.target.dataset.dirty!==undefined)tabs[act].dirty=true});
+function fromHash(){const r=location.hash.startsWith("#/")?location.hash.slice(2):"";return valid(r)?r:"customers"}
+addEventListener("hashchange",()=>{if(legacy)return;const r=fromHash();if(r!==tabs[0].route){tabs[0].route=r;tabs[0].dirty=false;render()}});
+$("mT").onclick=()=>{legacy=true;$("mT").className="on";$("mP").className="";render();note("Today’s behaviour: each drill-down (row, link, document) opens another tab. Sidebar items stay in the current tab.")};
+$("mP").onclick=()=>{legacy=false;$("mP").className="on";$("mT").className="";tabs=[tabs[act]];act=0;history.replaceState(null,"","#/"+tabs[0].route);render()};
+$("tri").onclick=()=>{tabs=[tabs[act]];act=0;render();note("Tab triage done. In real life this is manual and happens at the end of the day.")};
+$("rst").onclick=()=>{Object.assign(DB,{st:initSt(),timeout:30,email:true});tabs=[mkTab("customers")];act=0;pushed=0;history.replaceState(null,"","#/customers");render()};
+$("inf").onclick=()=>$("info").classList.toggle("on");
+tabs=[mkTab(fromHash())];render();
+</script></body></html>
